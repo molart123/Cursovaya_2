@@ -3,38 +3,81 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Панель ведущего</title>
+  <title>Админка Радужной Арены</title>
   <style>
-    body { font-family: sans-serif; background: #1e1e2f; color: white; padding: 20px; }
-    button { padding: 12px 24px; margin: 5px; font-size: 1em; border: none; border-radius: 8px; cursor: pointer; }
-    .control-panel { background: #2d2d44; padding: 20px; border-radius: 12px; }
-    .pause-btn { background: #f0ad4e; }
-    .resume-btn { background: #5cb85c; }
-    .pause-btn.active { background: #d9534f; }
-    select, input { padding: 10px; font-size: 1em; }
+    body { font-family: 'Comic Sans MS', cursive; max-width: 400px; margin: 20px auto; background: #fff5e6; padding: 20px; border-radius: 20px; }
+    h1 { color: #ff6b6b; text-align: center; }
+    button, select, input { font-size: 1.2em; padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; border-radius: 10px; border: 2px solid #ccc; }
+    button { background: #ffb347; color: white; font-weight: bold; cursor: pointer; }
   </style>
 </head>
 <body>
-  <h1>Управление викториной</h1>
-  <div class="control-panel">
-    <label>Режим команд:</label>
-    <select id="modeSelect">
-      <option value="1">1 команда (соло)</option>
-      <option value="2" selected>2 команды (дуэль)</option>
-      <option value="4">4 команды</option>
-    </select>
-    <label>Тема:</label>
-    <select id="themeSelect">
-      <option value="space">Космос</option>
-      <option value="nature">Природа</option>
-      <option value="future">Футуризм</option>
-    </select>
-    <button id="startBtn">Начать игру</button>
-    <button id="pauseBtn" class="pause-btn">⏸ Пауза</button>
-    <button id="themeApplyBtn">Применить тему</button>
-    <p>Статус: <span id="status">ожидание</span></p>
-    <p>Оставшееся время вопроса: <span id="timeDisplay">-</span></p>
-  </div>
-  <script src="js/admin.js"></script>
+<h1>🌈 Админка</h1>
+<label>Пароль: <input type="password" id="password" value="rainbow123"></label>
+<button onclick="fetchConfig()">Обновить</button>
+<hr>
+<label>Режим:</label>
+<select id="modeSelect">
+  <option value="single_multi">Общая команда (1 доска)</option>
+  <option value="duel">Дуэль (2 доски)</option>
+  <option value="quad_split">4 команды (2 разделённые доски)</option>
+</select>
+<label>Тема: <select id="themeSelect"><option value="farm">Ферма</option><option value="space">Космос</option></select></label>
+<label>Длительность раунда (сек): <input type="number" id="duration" value="150" min="30" max="600"></label>
+<button onclick="saveConfig()">Сохранить настройки</button>
+<hr>
+<button onclick="startGame()">Запустить игру</button>
+<button onclick="stopGame()">Остановить</button>
+<button onclick="resetScores()">Сбросить очки</button>
+<hr>
+<h2>Очки</h2>
+<div id="scores"></div>
+<script>
+  const password = document.getElementById('password');
+  function fetchWithPassword(url, options = {}) {
+    const pwd = password.value;
+    const sep = url.includes('?') ? '&' : '?';
+    return fetch(`${url}${sep}password=${pwd}`, options).then(r => r.json());
+  }
+  async function fetchConfig() {
+    const data = await fetchWithPassword('/api/config');
+    document.getElementById('modeSelect').value = data.config.mode;
+    document.getElementById('themeSelect').value = data.config.theme;
+    document.getElementById('duration').value = data.config.roundDuration;
+    updateScores(data.teams);
+  }
+  function updateScores(teams) {
+    document.getElementById('scores').innerHTML = teams.map(t =>
+            `<p><span style="background:${t.color};padding:2px 10px;border-radius:10px;color:white">${t.name}</span>: ${t.score || 0}</p>`
+    ).join('');
+  }
+  async function saveConfig() {
+    await fetchWithPassword('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        mode: document.getElementById('modeSelect').value,
+        theme: document.getElementById('themeSelect').value,
+        roundDuration: parseInt(document.getElementById('duration').value)
+      })
+    });
+    alert('Сохранено!');
+  }
+  async function startGame() {
+    await fetchWithPassword('/api/start', { method: 'POST' });
+    alert('Игра запущена!');
+  }
+  async function stopGame() {
+    await fetchWithPassword('/api/stop', { method: 'POST' });
+    alert('Остановлена');
+  }
+  async function resetScores() {
+    await fetchWithPassword('/api/reset', { method: 'POST' });
+    alert('Очки сброшены');
+    fetchConfig();
+  }
+  fetchConfig();
+  setInterval(fetchConfig, 5000);
+</script>
 </body>
 </html>

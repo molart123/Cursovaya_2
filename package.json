@@ -7,7 +7,21 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "express": "^4.22.2",
+    "socket.io": "^4.8.3",
     "ws": "^8.13.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/molart123/Cursovaya.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/molart123/Cursovaya/issues"
+  },
+  "homepage": "https://github.com/molart123/Cursovaya#readme",
+  "devDependencies": {}
 }
