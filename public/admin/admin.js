@@ -1,41 +1,52 @@
-// Загружаем список тем
+// Загружаем темы
 fetch('/themes')
-    .then(response => response.json())
-    .then(data => {
-        const themeSelect = document.getElementById('themeSelect');
-        data.themes.forEach(theme => {
-            const option = document.createElement('option');
-            option.value = theme;
-            option.textContent = theme;
-            themeSelect.appendChild(option);
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var sel = document.getElementById('themeSelect');
+        data.themes.forEach(function(t) {
+            var o = document.createElement('option');
+            o.value = t;
+            o.textContent = t;
+            sel.appendChild(o);
         });
-        themeSelect.value = data.currentTheme;
+        sel.value = data.currentTheme;
     });
 
-// Загружаем конфигурацию (режим, команды, длительность)
+// Загружаем конфигурацию
 fetch('/config')
-    .then(response => response.json())
-    .then(data => {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         document.getElementById('gameModeSelect').value = data.gameConfig.mode;
         document.getElementById('roundDurationInput').value = data.gameConfig.roundDuration;
-
-        data.teams.forEach((team, index) => {
-            const teamNumber = index + 1;
-            const nameLabel = document.getElementById(`team${teamNumber}NameLabel`);
-            const scoreLabel = document.getElementById(`team${teamNumber}ScoreLabel`);
-            if (team.name) {
-                nameLabel.textContent = `Команда ${teamNumber}: ${team.name}`;
-            }
-            scoreLabel.textContent = `Счет: ${team.score}`;
+        data.teams.forEach(function(t, i) {
+            var n = i + 1;
+            var nl = document.getElementById('team' + n + 'NameLabel');
+            var sl = document.getElementById('team' + n + 'ScoreLabel');
+            if (t.name) nl.textContent = 'Команда ' + n + ': ' + t.name;
+            sl.textContent = 'Счет: ' + t.score;
         });
     });
+
+// Обновление оставшегося времени
+function updateTimer() {
+    fetch('/board/state')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var mins = Math.floor(d.remaining / 60);
+            var secs = d.remaining % 60;
+            document.getElementById('timerDisplay').textContent =
+                String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        });
+}
+setInterval(updateTimer, 1000);
+updateTimer();
 
 // Изменение режима игры
 document.getElementById('gameModeSelect').addEventListener('change', function() {
     fetch('/game-mode', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({key: this.value})
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: this.value })
     });
 });
 
@@ -43,65 +54,62 @@ document.getElementById('gameModeSelect').addEventListener('change', function() 
 document.getElementById('themeSelect').addEventListener('change', function() {
     fetch('/theme', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({key: this.value})
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: this.value })
     });
 });
 
-// Изменение длительности раунда
+// Изменение длительности раунда (сразу сохраняется)
 document.getElementById('roundDurationInput').addEventListener('change', function() {
-    const newValue = parseInt(this.value, 10);
-    if (newValue && newValue >= 10) {
+    var val = parseInt(this.value, 10);
+    if (!isNaN(val) && val >= 10) {
         fetch('/round-duration', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({key: newValue})
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: val })
         });
     } else {
         alert('Минимальная длительность 10 секунд');
-        // Восстановим предыдущее значение из базы, чтобы не терять
         fetch('/config')
-            .then(res => res.json())
-            .then(config => {
-                this.value = config.gameConfig.roundDuration;
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                document.getElementById('roundDurationInput').value = data.gameConfig.roundDuration;
             });
     }
 });
 
 // Переименование команд
-document.getElementById('teamsContainer').addEventListener('click', function(event) {
-    const id = event.target.id;
-    if (id.includes('RenameBtn')) {
-        const teamNumber = id.match(/\d+/)[0];
-        const newName = prompt('Введите новое название команды:');
-        if (newName) {
-            fetch(`/team/${teamNumber}/name`, {
+document.getElementById('teamsContainer').addEventListener('click', function(e) {
+    var id = e.target.id;
+    if (id.indexOf('RenameBtn') !== -1) {
+        var n = id.match(/\d+/)[0];
+        var name = prompt('Новое название:');
+        if (name) {
+            fetch('/team/' + n + '/name', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({key: newName})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: name })
             })
-                .then(() => {
-                    const nameLabel = document.getElementById(`team${teamNumber}NameLabel`);
-                    nameLabel.textContent = `Команда ${teamNumber}: ${newName}`;
+                .then(function() {
+                    document.getElementById('team' + n + 'NameLabel').textContent = 'Команда ' + n + ': ' + name;
                 });
         }
     }
 });
 
-// Управление игрой (start/stop/resume/shutdown)
-document.getElementById('isRunning').addEventListener('click', function(event) {
-    const id = event.target.id;
-    let action = '';
-    if (id.includes('start')) action = 'start game';
-    else if (id.includes('stop')) action = 'stop game';
-    else if (id.includes('resume')) action = 'resume game';
-    else if (id.includes('shutdown')) action = 'shutdown game';
-
-    if (action) {
+// Управление игрой
+document.getElementById('isRunning').addEventListener('click', function(e) {
+    var id = e.target.id;
+    var a = '';
+    if (id.indexOf('start') !== -1) a = 'start game';
+    else if (id.indexOf('stop') !== -1) a = 'stop game';
+    else if (id.indexOf('resume') !== -1) a = 'resume game';
+    else if (id.indexOf('shutdown') !== -1) a = 'shutdown game';
+    if (a) {
         fetch('/game/process', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({key: action})
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: a })
         });
     }
 });

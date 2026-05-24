@@ -1,0 +1,107 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    background: #222;
+    font-family: Arial, sans-serif;
+    user-select: none;
+    touch-action: none;
+}
+
+.boards-container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+}
+
+.game-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    border-right: 2px solid #444;
+}
+
+.game-area:last-child {
+    border-right: none;
+}
+
+.team-name {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #ffd700;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 28px;
+    z-index: 10;
+}
+
+.score {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 28px;
+    z-index: 10;
+}
+
+.timer {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    color: #ffd700;
+    padding: 10px 30px;
+    border-radius: 10px;
+    font-size: 36px;
+    z-index: 20;
+}
+
+.message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 30px 50px;
+    border-radius: 20px;
+    font-size: 36px;
+    text-align: center;
+    z-index: 100;
+}
+
+.enemy {
+    position: absolute;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.enemy.easy {
+    width: 50px;
+    height: 50px;
+}
+
+.enemy.medium {
+    width: 65px;
+    height: 65px;
+}
+
+.enemy.hard {
+    width: 80px;
+    height: 80px;
+}

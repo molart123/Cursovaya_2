@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Доска 1</title>
+  <link rel="stylesheet" href="board1.css">
+</head>
+<body>
+<div class="boards-container">
+  <div class="game-area" id="gameArea1">
+    <div class="team-name" id="teamNameDisplay1">Команда 1</div>
+    <div class="score" id="scoreDisplay1">Очки: 0</div>
+    <div class="message" id="messageOverlay1">Ожидание запуска...</div>
+  </div>
+  <div class="game-area" id="gameArea2" style="display:none;">
+    <div class="team-name" id="teamNameDisplay2">Команда 2</div>
+    <div class="score" id="scoreDisplay2">Очки: 0</div>
+    <div class="message" id="messageOverlay2">Ожидание запуска...</div>
+  </div>
+</div>
+<div class="timer" id="timerDisplay">00:00</div>
+<script src="board1.js"></script>
+</body>
+</html>
