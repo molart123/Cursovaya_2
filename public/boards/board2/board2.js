@@ -15,7 +15,8 @@ var animId1 = null, animId2 = null;
 var lastTime1 = 0, lastTime2 = 0;
 var isSpawning = false;
 var currentMode = '';
-var gameStarted = false; // <-- НОВАЯ ПЕРЕМЕННАЯ
+var gameStarted = false;
+var isPaused = false;        // НОВЫЙ ФЛАГ ПАУЗЫ
 
 function getState() {
     return fetch('/board/state').then(r => r.json());
@@ -72,13 +73,13 @@ function update() {
 
         if (state.status === 'active') {
             if (!gameStarted) {
-                // Первый запуск или рестарт
                 clearAll();
                 startSpawning();
                 gameStarted = true;
-            } else if (isSpawning === false) {
-                // Возобновление после паузы
+                isPaused = false;
+            } else if (isSpawning === false && isPaused) {
                 isSpawning = true;
+                isPaused = false;
                 if (area1.style.display !== 'none' && !animId1) {
                     animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
                 }
@@ -88,7 +89,7 @@ function update() {
             }
             hideMessages();
         } else if (state.status === 'paused') {
-            stopAnimation();
+            isPaused = true;
             isSpawning = false;
             showMessages('ПАУЗА');
         } else if (state.status === 'finished') {
@@ -114,6 +115,7 @@ function stopAll() {
     if(spawnInterval2){clearInterval(spawnInterval2);spawnInterval2=null;}
     isSpawning=false;
     gameStarted=false;
+    isPaused=false;
 }
 function stopAnimation() {
     if(animId1){cancelAnimationFrame(animId1);animId1=null;}
@@ -122,6 +124,7 @@ function stopAnimation() {
 
 function startSpawning() {
     isSpawning = true;
+    isPaused = false;
     spawnEnemy(area1, enemies1, 1);
     spawnEnemy(area2, enemies2, 2);
     animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
@@ -172,7 +175,7 @@ function createEnemy(area, list) {
 }
 
 function move(area, list, ts, teamId) {
-    if (!isSpawning) return;
+    if (!isSpawning || isPaused) return;
     var lastTime = teamId===1?lastTime1:lastTime2;
     var dt = lastTime ? (ts-lastTime)/1000 : 0;
     if (teamId===1) lastTime1=ts; else lastTime2=ts;
@@ -184,12 +187,17 @@ function move(area, list, ts, teamId) {
         enemy.element.style.left = enemy.x+'%';
         enemy.element.style.top = enemy.y+'%';
     });
-    if (teamId===1) animId1 = requestAnimationFrame(ts => move(area, enemies1, ts, 1));
-    else animId2 = requestAnimationFrame(ts => move(area, enemies2, ts, 2));
+    if (isSpawning && !isPaused) {
+        if (teamId===1) animId1 = requestAnimationFrame(ts => move(area, enemies1, ts, 1));
+        else animId2 = requestAnimationFrame(ts => move(area, enemies2, ts, 2));
+    } else {
+        if (teamId===1) animId1 = null;
+        else animId2 = null;
+    }
 }
 
 function shoot(area, list, teamId, event) {
-    if (!isSpawning) return;
+    if (!isSpawning || isPaused) return;
     var rect = area.getBoundingClientRect();
     var x = event.clientX, y = event.clientY;
 
