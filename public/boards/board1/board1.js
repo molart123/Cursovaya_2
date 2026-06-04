@@ -15,7 +15,7 @@ var animId1 = null, animId2 = null;
 var lastTime1 = 0, lastTime2 = 0;
 var isSpawning = false;
 var gameStarted = false;
-var isPaused = false;        // НОВЫЙ ФЛАГ ПАУЗЫ
+var isPaused = false;        // флаг паузы
 
 function getState() {
     return fetch('/board/state').then(r => r.json());
@@ -58,25 +58,21 @@ function update() {
 
         if (state.status === 'active') {
             if (!gameStarted) {
+                // Полный рестарт / первый запуск
                 clearAll();
                 startSpawning();
                 gameStarted = true;
                 isPaused = false;
-            } else if (isSpawning === false && isPaused) {
+            } else if (isPaused) {
                 // Возобновление после паузы
-                isSpawning = true;
                 isPaused = false;
-                if (area1.style.display !== 'none' && !animId1) {
-                    animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
-                }
-                if (area2.style.display === 'block' && !animId2) {
-                    animId2 = requestAnimationFrame(ts => move(area2, enemies2, ts, 2));
-                }
+                isSpawning = true;
+                // Анимация уже работает, просто снимаем флаг паузы
             }
             hideMessages();
         } else if (state.status === 'paused') {
             isPaused = true;
-            isSpawning = false;
+            isSpawning = false;   // спавн останавливается
             showMessages('ПАУЗА');
         } else if (state.status === 'finished') {
             stopAll();
@@ -93,7 +89,7 @@ function update() {
 function clearAll() {
     enemies1.forEach(e=>e.element.remove()); enemies1=[];
     enemies2.forEach(e=>e.element.remove()); enemies2=[];
-    stopAnimation();
+    // Не останавливаем анимацию полностью, только сбрасываем массивы
 }
 function stopAll() {
     clearAll();
@@ -103,9 +99,9 @@ function stopAll() {
     gameStarted=false;
     isPaused=false;
 }
+// Функция stopAnimation больше не нужна, оставляем пустую или удаляем вызовы
 function stopAnimation() {
-    if(animId1){cancelAnimationFrame(animId1);animId1=null;}
-    if(animId2){cancelAnimationFrame(animId2);animId2=null;}
+    // Не отменяем requestAnimationFrame
 }
 
 function startSpawning() {
@@ -113,8 +109,11 @@ function startSpawning() {
     isPaused = false;
     spawnEnemy(area1, enemies1, 1);
     spawnEnemy(area2, enemies2, 2);
-    animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
-    if (area2.style.display === 'block') {
+    // Запускаем анимацию, если ещё не запущена
+    if (!animId1 && area1.style.display !== 'none') {
+        animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
+    }
+    if (!animId2 && area2.style.display === 'block') {
         animId2 = requestAnimationFrame(ts => move(area2, enemies2, ts, 2));
     }
 }
@@ -161,26 +160,25 @@ function createEnemy(area, list) {
 }
 
 function move(area, list, ts, teamId) {
-    if (!isSpawning || isPaused) return;   // НЕ ДВИГАЕМ ВРАГОВ НА ПАУЗЕ
-    var lastTime = teamId===1?lastTime1:lastTime2;
-    var dt = lastTime ? (ts-lastTime)/1000 : 0;
-    if (teamId===1) lastTime1=ts; else lastTime2=ts;
-    list.forEach(enemy => {
-        enemy.x += enemy.vx*dt;
-        enemy.y += enemy.vy*dt;
-        if (enemy.x<0||enemy.x>94) { enemy.vx*=-1; enemy.x=Math.max(0,Math.min(94,enemy.x)); }
-        if (enemy.y<0||enemy.y>94) { enemy.vy*=-1; enemy.y=Math.max(0,Math.min(94,enemy.y)); }
-        enemy.element.style.left = enemy.x+'%';
-        enemy.element.style.top = enemy.y+'%';
-    });
-    // Продолжаем анимацию, только если игра не на паузе и не остановлена
-    if (isSpawning && !isPaused) {
-        if (teamId===1) animId1 = requestAnimationFrame(ts => move(area, enemies1, ts, 1));
-        else animId2 = requestAnimationFrame(ts => move(area, enemies2, ts, 2));
+    // Если пауза – не двигаем, но продолжаем цикл анимации
+    if (!isPaused && isSpawning) {
+        var lastTime = teamId===1?lastTime1:lastTime2;
+        var dt = lastTime ? (ts-lastTime)/1000 : 0;
+        if (teamId===1) lastTime1=ts; else lastTime2=ts;
+        list.forEach(enemy => {
+            enemy.x += enemy.vx*dt;
+            enemy.y += enemy.vy*dt;
+            if (enemy.x<0||enemy.x>94) { enemy.vx*=-1; enemy.x=Math.max(0,Math.min(94,enemy.x)); }
+            if (enemy.y<0||enemy.y>94) { enemy.vy*=-1; enemy.y=Math.max(0,Math.min(94,enemy.y)); }
+            enemy.element.style.left = enemy.x+'%';
+            enemy.element.style.top = enemy.y+'%';
+        });
+    }
+    // Продолжаем анимацию всегда
+    if (teamId===1) {
+        animId1 = requestAnimationFrame(ts => move(area, enemies1, ts, 1));
     } else {
-        // Если на паузе, не запускаем новый кадр
-        if (teamId===1) animId1 = null;
-        else animId2 = null;
+        animId2 = requestAnimationFrame(ts => move(area, enemies2, ts, 2));
     }
 }
 
@@ -228,6 +226,12 @@ function hideMessages() { message1.style.display='none'; message2.style.display=
 
 area1.addEventListener('click', e => shoot(area1, enemies1, '1', e));
 area2.addEventListener('click', e => shoot(area2, enemies2, '2', e));
+
+// Запускаем анимацию один раз при загрузке страницы
+animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
+if (area2.style.display === 'block') {
+    animId2 = requestAnimationFrame(ts => move(area2, enemies2, ts, 2));
+}
 
 update();
 setInterval(update, 1000);
