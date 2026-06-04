@@ -11,10 +11,11 @@ var message2 = document.getElementById('messageOverlay2');
 var enemies1 = [], enemies2 = [];
 var textures = {};
 var spawnInterval1 = null, spawnInterval2 = null;
-var lastTime1 = 0, lastTime2 = 0;
-var currentMode = '';
+var animFrame1 = null, animFrame2 = null;
+var lastTimestamp1 = 0, lastTimestamp2 = 0;
 var gameActive = false;
-var paused = true;
+var gamePaused = false;
+var currentMode = '';
 
 function getState() {
     return fetch('/board/state').then(r => r.json());
@@ -25,31 +26,6 @@ function addScore(teamId, points) {
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({teamId:teamId, points:points})
     });
-}
-
-// Запуск спавна для области
-function startSpawningFor(area, list, intervalRef, teamId) {
-    if (area.style.display !== 'block') return;
-    createEnemy(area, list);
-    var interval = setInterval(() => {
-        if (!gameActive || paused) return;
-        if (area.style.display !== 'block') return;
-        if (list.length >= 12) return;
-        createEnemy(area, list);
-    }, 1000);
-    if (teamId === 1) spawnInterval1 = interval;
-    else spawnInterval2 = interval;
-}
-
-function stopSpawningFor(teamId) {
-    if (teamId === 1 && spawnInterval1) {
-        clearInterval(spawnInterval1);
-        spawnInterval1 = null;
-    }
-    if (teamId === 2 && spawnInterval2) {
-        clearInterval(spawnInterval2);
-        spawnInterval2 = null;
-    }
 }
 
 function createEnemy(area, list) {
@@ -82,20 +58,41 @@ function createEnemy(area, list) {
     list.push(enemy);
 }
 
-function move(area, list, ts, teamId) {
-    if (!gameActive || paused) {
-        if (teamId === 1) {
-            requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
-        } else {
-            requestAnimationFrame(ts => move(area2, enemies2, ts, 2));
-        }
+function startSpawning(area, list, teamId) {
+    if (area.style.display !== 'block') return;
+    createEnemy(area, list);
+    var interval = setInterval(() => {
+        if (!gameActive || gamePaused) return;
+        if (area.style.display !== 'block') return;
+        if (list.length >= 12) return;
+        createEnemy(area, list);
+    }, 1000);
+    if (teamId === 1) spawnInterval1 = interval;
+    else spawnInterval2 = interval;
+}
+
+function stopSpawning(teamId) {
+    if (teamId === 1 && spawnInterval1) {
+        clearInterval(spawnInterval1);
+        spawnInterval1 = null;
+    }
+    if (teamId === 2 && spawnInterval2) {
+        clearInterval(spawnInterval2);
+        spawnInterval2 = null;
+    }
+}
+
+// Анимация для одной области (запускается один раз и никогда не останавливается)
+function animate(area, list, teamId, timestamp) {
+    if (!gameActive || gamePaused) {
+        // Не обновляем координаты, но продолжаем цикл
+        if (teamId === 1) animFrame1 = requestAnimationFrame(t => animate(area1, enemies1, 1, t));
+        else animFrame2 = requestAnimationFrame(t => animate(area2, enemies2, 2, t));
         return;
     }
-
-    var lastTime = teamId === 1 ? lastTime1 : lastTime2;
-    var dt = lastTime ? Math.min(0.05, (ts - lastTime) / 1000) : 0;
-    if (teamId === 1) lastTime1 = ts; else lastTime2 = ts;
-
+    var lastTime = teamId === 1 ? lastTimestamp1 : lastTimestamp2;
+    var dt = lastTime ? Math.min(0.05, (timestamp - lastTime) / 1000) : 0;
+    if (teamId === 1) lastTimestamp1 = timestamp; else lastTimestamp2 = timestamp;
     for (var i = 0; i < list.length; i++) {
         var enemy = list[i];
         enemy.x += enemy.vx * dt;
@@ -105,26 +102,20 @@ function move(area, list, ts, teamId) {
         enemy.element.style.left = enemy.x + '%';
         enemy.element.style.top = enemy.y + '%';
     }
-
-    if (teamId === 1) {
-        requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
-    } else {
-        requestAnimationFrame(ts => move(area2, enemies2, ts, 2));
-    }
+    if (teamId === 1) animFrame1 = requestAnimationFrame(t => animate(area1, enemies1, 1, t));
+    else animFrame2 = requestAnimationFrame(t => animate(area2, enemies2, 2, t));
 }
 
 function shoot(area, list, teamId, event) {
-    if (!gameActive || paused) return;
+    if (!gameActive || gamePaused) return;
     var rect = area.getBoundingClientRect();
     var x = event.clientX, y = event.clientY;
-
     var marker = document.createElement('div');
     marker.className = 'hit-marker';
     marker.style.left = (x - rect.left) + 'px';
     marker.style.top = (y - rect.top) + 'px';
     area.appendChild(marker);
     marker.addEventListener('animationend', function() { marker.remove(); });
-
     var clickX = ((x - rect.left) / rect.width) * 100;
     var clickY = ((y - rect.top) / rect.height) * 100;
     for (var i = list.length - 1; i >= 0; i--) {
@@ -154,53 +145,38 @@ function shoot(area, list, teamId, event) {
 }
 
 function fullReset() {
-    enemies1.forEach(e => e.element.remove());
-    enemies2.forEach(e => e.element.remove());
-    enemies1 = [];
-    enemies2 = [];
+    enemies1.forEach(e => e.element.remove()); enemies1 = [];
+    enemies2.forEach(e => e.element.remove()); enemies2 = [];
     if (spawnInterval1) clearInterval(spawnInterval1);
     if (spawnInterval2) clearInterval(spawnInterval2);
-    spawnInterval1 = null;
-    spawnInterval2 = null;
+    spawnInterval1 = null; spawnInterval2 = null;
     gameActive = false;
-    paused = true;
-    lastTime1 = 0;
-    lastTime2 = 0;
+    gamePaused = true;
+    lastTimestamp1 = 0; lastTimestamp2 = 0;
 }
 
 function startGame() {
-    if (gameActive && paused) {
-        paused = false;
-        lastTime1 = 0;
-        lastTime2 = 0;
-        if (area1.style.display === 'block' && !spawnInterval1) {
-            startSpawningFor(area1, enemies1, 1, 1);
-        }
-        if (area2.style.display === 'block' && !spawnInterval2) {
-            startSpawningFor(area2, enemies2, 2, 2);
-        }
+    if (gameActive && gamePaused) {
+        gamePaused = false;
+        lastTimestamp1 = 0; lastTimestamp2 = 0;
+        if (area1.style.display === 'block' && !spawnInterval1) startSpawning(area1, enemies1, 1);
+        if (area2.style.display === 'block' && !spawnInterval2) startSpawning(area2, enemies2, 2);
         return;
     }
     fullReset();
     gameActive = true;
-    paused = false;
-    lastTime1 = 0;
-    lastTime2 = 0;
-    if (area1.style.display === 'block') {
-        startSpawningFor(area1, enemies1, 1, 1);
-    }
-    if (area2.style.display === 'block') {
-        startSpawningFor(area2, enemies2, 2, 2);
-    }
+    gamePaused = false;
+    lastTimestamp1 = 0; lastTimestamp2 = 0;
+    if (area1.style.display === 'block') startSpawning(area1, enemies1, 1);
+    if (area2.style.display === 'block') startSpawning(area2, enemies2, 2);
 }
 
 function pauseGame() {
     if (!gameActive) return;
-    paused = true;
+    gamePaused = true;
     if (spawnInterval1) clearInterval(spawnInterval1);
     if (spawnInterval2) clearInterval(spawnInterval2);
-    spawnInterval1 = null;
-    spawnInterval2 = null;
+    spawnInterval1 = null; spawnInterval2 = null;
 }
 
 function showMessages(text) {
@@ -212,9 +188,9 @@ function hideMessages() { message1.style.display = 'none'; message2.style.displa
 area1.addEventListener('click', e => shoot(area1, enemies1, '1', e));
 area2.addEventListener('click', e => shoot(area2, enemies2, '2', e));
 
-// ЗАПУСКАЕМ АНИМАЦИЮ ДЛЯ ОБЕИХ ОБЛАСТЕЙ
-requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
-requestAnimationFrame(ts => move(area2, enemies2, ts, 2));
+// ЗАПУСКАЕМ АНИМАЦИЮ ДЛЯ ОБЕИХ ОБЛАСТЕЙ (ОДИН РАЗ)
+animFrame1 = requestAnimationFrame(t => animate(area1, enemies1, 1, t));
+animFrame2 = requestAnimationFrame(t => animate(area2, enemies2, 2, t));
 
 function update() {
     getState().then(state => {
@@ -223,12 +199,8 @@ function update() {
         var mins = Math.floor(state.remaining / 60);
         var secs = state.remaining % 60;
         timerDisplay.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-
-        if (state.background) {
-            document.body.style.background = "url('" + state.background + "') center/cover no-repeat";
-        } else {
-            document.body.style.background = '#222';
-        }
+        if (state.background) document.body.style.background = "url('" + state.background + "') center/cover no-repeat";
+        else document.body.style.background = '#222';
 
         if (currentMode === '1board1team') {
             area1.style.display = 'none';
@@ -259,15 +231,10 @@ function update() {
         }
 
         if (state.status === 'active') {
-            if (!gameActive || paused) {
-                startGame();
-            }
+            if (!gameActive || gamePaused) startGame();
             hideMessages();
         } else if (state.status === 'paused') {
-            if (gameActive && !paused) {
-                pauseGame();
-                showMessages('ПАУЗА');
-            }
+            if (gameActive && !gamePaused) { pauseGame(); showMessages('ПАУЗА'); }
         } else if (state.status === 'finished') {
             fullReset();
             showMessages('Игра окончена!');
