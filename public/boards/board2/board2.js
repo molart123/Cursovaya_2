@@ -15,6 +15,7 @@ var animId1 = null, animId2 = null;
 var lastTime1 = 0, lastTime2 = 0;
 var isSpawning = false;
 var currentMode = '';
+var gameStarted = false; // <-- НОВАЯ ПЕРЕМЕННАЯ
 
 function getState() {
     return fetch('/board/state').then(r => r.json());
@@ -35,7 +36,6 @@ function update() {
         var secs = state.remaining%60;
         timerDisplay.textContent = String(mins).padStart(2,'0')+':'+String(secs).padStart(2,'0');
 
-        // ===== ФОН ТЕМЫ =====
         if (state.background) {
             document.body.style.background = "url('" + state.background + "') center/cover no-repeat";
         } else {
@@ -71,14 +71,34 @@ function update() {
         }
 
         if (state.status === 'active') {
-            if (!isSpawning) { clearAll(); startSpawning(); }
+            if (!gameStarted) {
+                // Первый запуск или рестарт
+                clearAll();
+                startSpawning();
+                gameStarted = true;
+            } else if (isSpawning === false) {
+                // Возобновление после паузы
+                isSpawning = true;
+                if (area1.style.display !== 'none' && !animId1) {
+                    animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
+                }
+                if (area2.style.display === 'block' && !animId2) {
+                    animId2 = requestAnimationFrame(ts => move(area2, enemies2, ts, 2));
+                }
+            }
             hideMessages();
         } else if (state.status === 'paused') {
-            stopAnimation(); isSpawning = false; showMessages('ПАУЗА');
+            stopAnimation();
+            isSpawning = false;
+            showMessages('ПАУЗА');
         } else if (state.status === 'finished') {
-            stopAll(); showMessages('Игра окончена!');
+            stopAll();
+            gameStarted = false;
+            showMessages('Игра окончена!');
         } else {
-            stopAll(); showMessages('Ожидание запуска...');
+            stopAll();
+            gameStarted = false;
+            showMessages('Ожидание запуска...');
         }
     });
 }
@@ -93,6 +113,7 @@ function stopAll() {
     if(spawnInterval1){clearInterval(spawnInterval1);spawnInterval1=null;}
     if(spawnInterval2){clearInterval(spawnInterval2);spawnInterval2=null;}
     isSpawning=false;
+    gameStarted=false;
 }
 function stopAnimation() {
     if(animId1){cancelAnimationFrame(animId1);animId1=null;}
