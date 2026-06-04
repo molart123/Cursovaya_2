@@ -184,37 +184,6 @@ area2.addEventListener('click', e => shoot(area2, enemies2, '2', e));
 animFrame1 = requestAnimationFrame(t => animate(area1, enemies1, 1, t));
 animFrame2 = requestAnimationFrame(t => animate(area2, enemies2, 2, t));
 
-function getWinnerMessage(state) {
-    const mode = state.mode;
-    let teams = state.teams;
-    let activeTeams = [];
-
-    if (mode === '1board1team' || mode === '2board1team') {
-        activeTeams = [teams[0]];
-    } else if (mode === '2board2team') {
-        activeTeams = [teams[0], teams[1]];
-    } else if (mode === '2board4team') {
-        activeTeams = [teams[0], teams[1], teams[2], teams[3]];
-    } else {
-        activeTeams = [teams[0]];
-    }
-
-    if (activeTeams.length === 0) return "Игра окончена!";
-
-    let maxScore = -1;
-    for (let t of activeTeams) {
-        if (t.score > maxScore) maxScore = t.score;
-    }
-    const winners = activeTeams.filter(t => t.score === maxScore);
-
-    if (winners.length === 1) {
-        return `Победила команда "${winners[0].name}" с ${winners[0].score} очками!`;
-    } else {
-        let names = winners.map(w => `"${w.name}" (${w.score})`).join(', ');
-        return `Победили команды: ${names} очков!`;
-    }
-}
-
 function update() {
     getState().then(state => {
         textures = state.enemies || {};
@@ -246,7 +215,24 @@ function update() {
             if (gameActive && !gamePaused) { pauseGame(); showMessages('ПАУЗА'); }
         } else if (state.status === 'finished') {
             fullReset();
-            const winnerMsg = getWinnerMessage(state);
+            // ---- расчёт победителя ----
+            let maxScore = -1;
+            let winners = [];
+            for (let i = 0; i < state.teams.length; i++) {
+                let team = state.teams[i];
+                if (team.score > maxScore) {
+                    maxScore = team.score;
+                    winners = [team];
+                } else if (team.score === maxScore) {
+                    winners.push(team);
+                }
+            }
+            let winnerMsg = 'Игра окончена!';
+            if (winners.length === 1) {
+                winnerMsg = `🏆 Победила команда "${winners[0].name}" с ${winners[0].score} очками! 🏆`;
+            } else if (winners.length > 1) {
+                winnerMsg = `🏆 Победили команды: ${winners.map(w => `"${w.name}" (${w.score})`).join(', ')} очков! 🏆`;
+            }
             showMessages(winnerMsg);
         } else {
             fullReset();
