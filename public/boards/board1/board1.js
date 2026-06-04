@@ -13,9 +13,9 @@ var textures = {};
 var spawnInterval1 = null, spawnInterval2 = null;
 var animId1 = null, animId2 = null;
 var lastTime1 = 0, lastTime2 = 0;
-var isSpawning = false;
-var gameStarted = false;
-var isPaused = false;        // флаг паузы
+var paused = true;          // игра на паузе по умолчанию (ждём запуска)
+var spawning = false;       // разрешён ли спавн
+var gameActive = false;     // был ли уже запуск (чтобы отличить рестарт)
 
 function getState() {
     return fetch('/board/state').then(r => r.json());
@@ -57,133 +57,137 @@ function update() {
         }
 
         if (state.status === 'active') {
-            if (!gameStarted) {
-                // Полный рестарт / первый запуск
-                clearAll();
+            if (!gameActive) {
+                // Первый запуск или рестарт – полная очистка и старт
+                fullReset();
                 startSpawning();
-                gameStarted = true;
-                isPaused = false;
-            } else if (isPaused) {
-                // Возобновление после паузы
-                isPaused = false;
-                isSpawning = true;
-                // Анимация уже работает, просто снимаем флаг паузы
+                paused = false;
+                gameActive = true;
+            } else if (paused) {
+                // Продолжение после паузы
+                paused = false;
+                startSpawning();   // возобновляем спавн новых врагов
             }
             hideMessages();
-        } else if (state.status === 'paused') {
-            isPaused = true;
-            isSpawning = false;   // спавн останавливается
-            showMessages('ПАУЗА');
-        } else if (state.status === 'finished') {
-            stopAll();
-            gameStarted = false;
+        }
+        else if (state.status === 'paused') {
+            if (!paused) {
+                paused = true;
+                stopSpawning();    // останавливаем спавн новых врагов
+                showMessages('ПАУЗА');
+            }
+        }
+        else if (state.status === 'finished') {
+            fullReset();
+            gameActive = false;
             showMessages('Игра окончена!');
-        } else {
-            stopAll();
-            gameStarted = false;
+        }
+        else {
+            fullReset();
+            gameActive = false;
             showMessages('Ожидание запуска...');
         }
     });
 }
 
-function clearAll() {
-    enemies1.forEach(e=>e.element.remove()); enemies1=[];
-    enemies2.forEach(e=>e.element.remove()); enemies2=[];
-    // Не останавливаем анимацию полностью, только сбрасываем массивы
+function fullReset() {
+    // Очищаем всех врагов
+    enemies1.forEach(e => e.element.remove());
+    enemies2.forEach(e => e.element.remove());
+    enemies1 = [];
+    enemies2 = [];
+    stopSpawning();
+    paused = true;
+    spawning = false;
 }
-function stopAll() {
-    clearAll();
-    if(spawnInterval1){clearInterval(spawnInterval1);spawnInterval1=null;}
-    if(spawnInterval2){clearInterval(spawnInterval2);spawnInterval2=null;}
-    isSpawning=false;
-    gameStarted=false;
-    isPaused=false;
-}
-// Функция stopAnimation больше не нужна, оставляем пустую или удаляем вызовы
-function stopAnimation() {
-    // Не отменяем requestAnimationFrame
+
+function stopSpawning() {
+    if (spawnInterval1) { clearInterval(spawnInterval1); spawnInterval1 = null; }
+    if (spawnInterval2) { clearInterval(spawnInterval2); spawnInterval2 = null; }
+    spawning = false;
 }
 
 function startSpawning() {
-    isSpawning = true;
-    isPaused = false;
-    spawnEnemy(area1, enemies1, 1);
-    spawnEnemy(area2, enemies2, 2);
-    // Запускаем анимацию, если ещё не запущена
-    if (!animId1 && area1.style.display !== 'none') {
-        animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
+    if (spawning) return;
+    spawning = true;
+    // Запускаем спавн для каждой активной области
+    if (area1.style.display !== 'none') {
+        spawnEnemy(area1, enemies1, 1);
+        spawnInterval1 = setInterval(() => {
+            if (!spawning || area1.style.display === 'none' || enemies1.length >= 12) return;
+            createEnemy(area1, enemies1);
+        }, 1000);
     }
-    if (!animId2 && area2.style.display === 'block') {
-        animId2 = requestAnimationFrame(ts => move(area2, enemies2, ts, 2));
+    if (area2.style.display === 'block') {
+        spawnEnemy(area2, enemies2, 2);
+        spawnInterval2 = setInterval(() => {
+            if (!spawning || area2.style.display === 'none' || enemies2.length >= 12) return;
+            createEnemy(area2, enemies2);
+        }, 1000);
     }
 }
 
 function spawnEnemy(area, list, teamId) {
     if (area.style.display === 'none') return;
     createEnemy(area, list);
-    var interval = setInterval(() => {
-        if (!isSpawning || area.style.display==='none' || list.length>=12) return;
-        createEnemy(area, list);
-    }, 1000);
-    if (teamId===1) spawnInterval1=interval;
-    else spawnInterval2=interval;
 }
 
 function createEnemy(area, list) {
     var rand = Math.random();
     var life, cssClass;
-    if (rand<0.6) { life=1; cssClass='easy'; }
-    else if (rand<0.85) { life=2; cssClass='medium'; }
-    else { life=3; cssClass='hard'; }
+    if (rand < 0.6) { life = 1; cssClass = 'easy'; }
+    else if (rand < 0.85) { life = 2; cssClass = 'medium'; }
+    else { life = 3; cssClass = 'hard'; }
 
     var el = document.createElement('div');
     el.className = 'enemy ' + cssClass;
-    var imgKey = cssClass==='easy'?'small_enemy':(cssClass==='medium'?'medium_enemy':'big_enemy');
+    var imgKey = cssClass === 'easy' ? 'small_enemy' : (cssClass === 'medium' ? 'medium_enemy' : 'big_enemy');
     if (textures[imgKey]) {
-        el.style.backgroundImage = "url('"+textures[imgKey]+"')";
+        el.style.backgroundImage = "url('" + textures[imgKey] + "')";
         el.style.backgroundSize = 'contain';
         el.style.backgroundRepeat = 'no-repeat';
         el.style.backgroundPosition = 'center';
     } else {
-        el.style.background = cssClass==='easy'?'#4caf50':(cssClass==='medium'?'#ffeb3b':'#f44336');
+        el.style.background = cssClass === 'easy' ? '#4caf50' : (cssClass === 'medium' ? '#ffeb3b' : '#f44336');
     }
 
     var enemy = {
-        life, maxLife:life, element:el,
-        x:Math.random()*80+10, y:Math.random()*80+10,
-        vx:(Math.random()-0.5)*6, vy:(Math.random()-0.5)*6
+        life: life, maxLife: life, element: el,
+        x: Math.random() * 80 + 10, y: Math.random() * 80 + 10,
+        vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6
     };
-    el.style.left = enemy.x+'%';
-    el.style.top = enemy.y+'%';
+    el.style.left = enemy.x + '%';
+    el.style.top = enemy.y + '%';
     area.appendChild(el);
     list.push(enemy);
 }
 
 function move(area, list, ts, teamId) {
-    // Если пауза – не двигаем, но продолжаем цикл анимации
-    if (!isPaused && isSpawning) {
-        var lastTime = teamId===1?lastTime1:lastTime2;
-        var dt = lastTime ? (ts-lastTime)/1000 : 0;
-        if (teamId===1) lastTime1=ts; else lastTime2=ts;
-        list.forEach(enemy => {
-            enemy.x += enemy.vx*dt;
-            enemy.y += enemy.vy*dt;
-            if (enemy.x<0||enemy.x>94) { enemy.vx*=-1; enemy.x=Math.max(0,Math.min(94,enemy.x)); }
-            if (enemy.y<0||enemy.y>94) { enemy.vy*=-1; enemy.y=Math.max(0,Math.min(94,enemy.y)); }
-            enemy.element.style.left = enemy.x+'%';
-            enemy.element.style.top = enemy.y+'%';
-        });
+    // Обновляем координаты, только если не на паузе и игра активна
+    if (!paused && gameActive) {
+        var lastTime = teamId === 1 ? lastTime1 : lastTime2;
+        var dt = lastTime ? (ts - lastTime) / 1000 : 0;
+        if (teamId === 1) lastTime1 = ts; else lastTime2 = ts;
+        for (var i = 0; i < list.length; i++) {
+            var enemy = list[i];
+            enemy.x += enemy.vx * dt;
+            enemy.y += enemy.vy * dt;
+            if (enemy.x < 0 || enemy.x > 94) { enemy.vx *= -1; enemy.x = Math.max(0, Math.min(94, enemy.x)); }
+            if (enemy.y < 0 || enemy.y > 94) { enemy.vy *= -1; enemy.y = Math.max(0, Math.min(94, enemy.y)); }
+            enemy.element.style.left = enemy.x + '%';
+            enemy.element.style.top = enemy.y + '%';
+        }
     }
-    // Продолжаем анимацию всегда
-    if (teamId===1) {
-        animId1 = requestAnimationFrame(ts => move(area, enemies1, ts, 1));
+    // Продолжаем цикл анимации
+    if (teamId === 1) {
+        animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
     } else {
-        animId2 = requestAnimationFrame(ts => move(area, enemies2, ts, 2));
+        animId2 = requestAnimationFrame(ts => move(area2, enemies2, ts, 2));
     }
 }
 
 function shoot(area, list, teamId, event) {
-    if (!isSpawning || isPaused) return;
+    if (paused || !gameActive) return;
     var rect = area.getBoundingClientRect();
     var x = event.clientX, y = event.clientY;
 
@@ -196,22 +200,22 @@ function shoot(area, list, teamId, event) {
 
     var clickX = ((x - rect.left) / rect.width) * 100;
     var clickY = ((y - rect.top) / rect.height) * 100;
-    for (var i=list.length-1; i>=0; i--) {
+    for (var i = list.length - 1; i >= 0; i--) {
         var enemy = list[i];
         var er = enemy.element.getBoundingClientRect();
-        var cx = ((er.left+er.width/2)-rect.left)/rect.width*100;
-        var cy = ((er.top+er.height/2)-rect.top)/rect.height*100;
-        var rx = (er.width/rect.width*100)/2;
-        var ry = (er.height/rect.height*100)/2;
-        if (Math.abs(clickX-cx)<=rx && Math.abs(clickY-cy)<=ry) {
+        var cx = ((er.left + er.width / 2) - rect.left) / rect.width * 100;
+        var cy = ((er.top + er.height / 2) - rect.top) / rect.height * 100;
+        var rx = (er.width / rect.width * 100) / 2;
+        var ry = (er.height / rect.height * 100) / 2;
+        if (Math.abs(clickX - cx) <= rx && Math.abs(clickY - cy) <= ry) {
             enemy.life--;
             if (enemy.life <= 0) {
-                var points = enemy.maxLife===1?5:(enemy.maxLife===2?10:20);
+                var points = enemy.maxLife === 1 ? 5 : (enemy.maxLife === 2 ? 10 : 20);
                 addScore(teamId, points);
-                var sd = teamId==='1'?score1:score2;
-                sd.textContent = 'Очки: ' + (parseInt(sd.textContent.split(': ')[1])+points);
+                var sd = teamId === '1' ? score1 : score2;
+                sd.textContent = 'Очки: ' + (parseInt(sd.textContent.split(': ')[1]) + points);
                 enemy.element.remove();
-                list.splice(i,1);
+                list.splice(i, 1);
             }
             break;
         }
@@ -219,15 +223,15 @@ function shoot(area, list, teamId, event) {
 }
 
 function showMessages(text) {
-    if (area1.style.display!=='none') { message1.style.display='block'; message1.textContent=text; }
-    if (area2.style.display!=='none') { message2.style.display='block'; message2.textContent=text; }
+    if (area1.style.display !== 'none') { message1.style.display = 'block'; message1.textContent = text; }
+    if (area2.style.display !== 'none') { message2.style.display = 'block'; message2.textContent = text; }
 }
-function hideMessages() { message1.style.display='none'; message2.style.display='none'; }
+function hideMessages() { message1.style.display = 'none'; message2.style.display = 'none'; }
 
 area1.addEventListener('click', e => shoot(area1, enemies1, '1', e));
 area2.addEventListener('click', e => shoot(area2, enemies2, '2', e));
 
-// Запускаем анимацию один раз при загрузке страницы
+// Запускаем анимацию один раз при загрузке
 animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
 if (area2.style.display === 'block') {
     animId2 = requestAnimationFrame(ts => move(area2, enemies2, ts, 2));
