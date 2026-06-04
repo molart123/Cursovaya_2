@@ -28,7 +28,8 @@ function startServerTimer() {
             if (db.gameConfig.timeRemaining <= 0) {
                 db.gameConfig.timeRemaining = 0;
                 db.gameConfig.isRunning = false;
-                db.gameConfig.isStarting = false;
+                // НЕ СБРАСЫВАЕМ isStarting – чтобы клиент увидел статус 'finished'
+                // db.gameConfig.isStarting = false;  // ← удалено
                 clearInterval(timerInterval);
                 timerInterval = null;
             }
@@ -145,7 +146,6 @@ app.post('/board/score', function(req, res) {
     } else res.status(400).json({ ok: false });
 });
 
-// Слушаем все интерфейсы, выводим ссылки
 app.listen(PORT, '0.0.0.0', function() {
     console.log('========================================');
     console.log('  Сервер запущен на порту ' + PORT);

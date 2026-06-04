@@ -81,7 +81,6 @@ function stopSpawning(teamId) {
     }
 }
 
-// Анимация для одной области (запускается один раз и никогда не останавливается)
 function animate(area, list, teamId, timestamp) {
     if (!gameActive || gamePaused) {
         if (teamId === 1) animFrame1 = requestAnimationFrame(t => animate(area1, enemies1, 1, t));
@@ -182,11 +181,9 @@ function hideMessages() { message1.style.display = 'none'; message2.style.displa
 area1.addEventListener('click', e => shoot(area1, enemies1, '1', e));
 area2.addEventListener('click', e => shoot(area2, enemies2, '2', e));
 
-// ЗАПУСКАЕМ АНИМАЦИЮ ДЛЯ ОБЕИХ ОБЛАСТЕЙ (ОДИН РАЗ)
 animFrame1 = requestAnimationFrame(t => animate(area1, enemies1, 1, t));
 animFrame2 = requestAnimationFrame(t => animate(area2, enemies2, 2, t));
 
-// ========== ФУНКЦИЯ ОПРЕДЕЛЕНИЯ ПОБЕДИТЕЛЯ ==========
 function getWinnerMessage(state) {
     const mode = state.mode;
     let teams = state.teams;
@@ -199,7 +196,7 @@ function getWinnerMessage(state) {
     } else if (mode === '2board4team') {
         activeTeams = [teams[0], teams[1], teams[2], teams[3]];
     } else {
-        activeTeams = [teams[0]]; // fallback
+        activeTeams = [teams[0]];
     }
 
     if (activeTeams.length === 0) return "Игра окончена!";
