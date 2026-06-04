@@ -77,9 +77,13 @@ function update() {
                 startSpawning();
                 paused = false;
                 gameActive = true;
+                lastTime1 = 0;
+                lastTime2 = 0;
             } else if (paused) {
                 paused = false;
                 startSpawning();
+                lastTime1 = 0;
+                lastTime2 = 0;
             }
             hideMessages();
         }
@@ -111,6 +115,8 @@ function fullReset() {
     stopSpawning();
     paused = true;
     spawning = false;
+    lastTime1 = 0;
+    lastTime2 = 0;
 }
 
 function stopSpawning() {
@@ -188,6 +194,7 @@ function move(area, list, ts, teamId) {
             enemy.element.style.top = enemy.y + '%';
         }
     }
+    // Продолжаем анимацию
     if (teamId === 1) {
         animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
     } else {

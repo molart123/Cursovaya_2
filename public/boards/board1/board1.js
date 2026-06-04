@@ -13,9 +13,9 @@ var textures = {};
 var spawnInterval1 = null, spawnInterval2 = null;
 var animId1 = null, animId2 = null;
 var lastTime1 = 0, lastTime2 = 0;
-var paused = true;          // игра на паузе по умолчанию (ждём запуска)
+var paused = true;          // игра на паузе (ждём запуска)
 var spawning = false;       // разрешён ли спавн
-var gameActive = false;     // был ли уже запуск (чтобы отличить рестарт)
+var gameActive = false;     // активна ли игра (был запуск)
 
 function getState() {
     return fetch('/board/state').then(r => r.json());
@@ -58,22 +58,28 @@ function update() {
 
         if (state.status === 'active') {
             if (!gameActive) {
-                // Первый запуск или рестарт – полная очистка и старт
+                // Первый запуск или рестарт – полная очистка
                 fullReset();
                 startSpawning();
                 paused = false;
                 gameActive = true;
+                // Сбрасываем время, чтобы избежать скачка
+                lastTime1 = 0;
+                lastTime2 = 0;
             } else if (paused) {
-                // Продолжение после паузы
+                // Возобновление после паузы
                 paused = false;
-                startSpawning();   // возобновляем спавн новых врагов
+                startSpawning();
+                // КРИТИЧЕСКИ ВАЖНО: сбрасываем lastTime, чтобы dt не было огромным
+                lastTime1 = 0;
+                lastTime2 = 0;
             }
             hideMessages();
         }
         else if (state.status === 'paused') {
             if (!paused) {
                 paused = true;
-                stopSpawning();    // останавливаем спавн новых врагов
+                stopSpawning();   // новые враги не появляются
                 showMessages('ПАУЗА');
             }
         }
@@ -91,7 +97,6 @@ function update() {
 }
 
 function fullReset() {
-    // Очищаем всех врагов
     enemies1.forEach(e => e.element.remove());
     enemies2.forEach(e => e.element.remove());
     enemies1 = [];
@@ -99,6 +104,8 @@ function fullReset() {
     stopSpawning();
     paused = true;
     spawning = false;
+    lastTime1 = 0;
+    lastTime2 = 0;
 }
 
 function stopSpawning() {
@@ -110,7 +117,6 @@ function stopSpawning() {
 function startSpawning() {
     if (spawning) return;
     spawning = true;
-    // Запускаем спавн для каждой активной области
     if (area1.style.display !== 'none') {
         spawnEnemy(area1, enemies1, 1);
         spawnInterval1 = setInterval(() => {
@@ -163,7 +169,7 @@ function createEnemy(area, list) {
 }
 
 function move(area, list, ts, teamId) {
-    // Обновляем координаты, только если не на паузе и игра активна
+    // Обновляем координаты ТОЛЬКО если игра активна и не на паузе
     if (!paused && gameActive) {
         var lastTime = teamId === 1 ? lastTime1 : lastTime2;
         var dt = lastTime ? (ts - lastTime) / 1000 : 0;
@@ -177,8 +183,12 @@ function move(area, list, ts, teamId) {
             enemy.element.style.left = enemy.x + '%';
             enemy.element.style.top = enemy.y + '%';
         }
+    } else {
+        // В паузе или ожидании – не обновляем lastTime, чтобы не накапливать
+        // и не меняем координаты. Но чтобы после выхода из паузы не было скачка,
+        // lastTime обнуляется в обработчике статуса.
     }
-    // Продолжаем цикл анимации
+    // Продолжаем анимацию
     if (teamId === 1) {
         animId1 = requestAnimationFrame(ts => move(area1, enemies1, ts, 1));
     } else {
