@@ -8,7 +8,10 @@
 </head>
 <body>
 <div class="container">
-    <h1>Настройки игры</h1>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>Настройки игры</h1>
+        <button id="logoutBtn" style="background:#555;">Выйти</button>
+    </div>
 
     <div class="section">
         <h3>Режим игры</h3>
@@ -45,6 +48,20 @@
         </div>
     </div>
 
+    <div class="section">
+        <h3>Пароли досок</h3>
+        <div class="team-block">
+            <span>Доска 1 пароль:</span>
+            <input type="text" id="board1PasswordInput" placeholder="Пароль" maxlength="10">
+            <button id="setBoard1PasswordBtn">Установить</button>
+        </div>
+        <div class="team-block">
+            <span>Доска 2 пароль:</span>
+            <input type="text" id="board2PasswordInput" placeholder="Пароль" maxlength="10">
+            <button id="setBoard2PasswordBtn">Установить</button>
+        </div>
+    </div>
+
     <div id="teamsContainer" class="section">
         <h3>Команды</h3>
         <div class="team-block"><span id="team1NameLabel">Команда 1:</span><button id="team1RenameBtn">Изменить</button><span id="team1ScoreLabel">Счёт: 0</span></div>
@@ -52,7 +69,54 @@
         <div class="team-block"><span id="team3NameLabel">Команда 3:</span><button id="team3RenameBtn">Изменить</button><span id="team3ScoreLabel">Счёт: 0</span></div>
         <div class="team-block"><span id="team4NameLabel">Команда 4:</span><button id="team4RenameBtn">Изменить</button><span id="team4ScoreLabel">Счёт: 0</span></div>
     </div>
+
+    <div class="section" id="adminManagementSection" style="display:none;">
+        <h3>Управление администраторами</h3>
+        <div style="display:flex; gap:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
+            <input type="text" id="newAdminLogin" placeholder="Логин">
+            <input type="password" id="newAdminPassword" placeholder="Пароль">
+            <select id="newAdminRole">
+                <option value="admin">Администратор</option>
+                <option value="superadmin">Суперадмин</option>
+            </select>
+            <button id="createAdminBtn">➕ Добавить</button>
+        </div>
+        <div id="adminsList"></div>
+    </div>
+
+    <div class="section">
+        <h3>Управление темами</h3>
+        <button id="createThemeBtn" style="background:#2e7d32;">➕ Создать тему</button>
+        <div id="themesList" style="margin-top: 1rem;"></div>
+    </div>
 </div>
+
+<div id="themeModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:1000;">
+    <div style="background:#16213e; padding:1.5rem; border-radius:1rem; max-width:500px; width:90%; max-height:90%; overflow-y:auto;">
+        <h3 id="modalTitle">Создание темы</h3>
+        <form id="themeForm">
+            <label>Название темы (латиница, цифры, _, -):</label>
+            <input type="text" id="themeNameInput" required style="margin-bottom:1rem; width:100%;">
+            <label>Изображение малой мишени (small):</label>
+            <input type="file" id="smallEnemyInput" accept="image/*">
+            <div id="smallEnemyPreview"></div>
+            <label>Изображение средней мишени (medium):</label>
+            <input type="file" id="mediumEnemyInput" accept="image/*">
+            <div id="mediumEnemyPreview"></div>
+            <label>Изображение большой мишени (big):</label>
+            <input type="file" id="bigEnemyInput" accept="image/*">
+            <div id="bigEnemyPreview"></div>
+            <label>Фон (необязательно):</label>
+            <input type="file" id="backgroundInput" accept="image/*">
+            <div id="backgroundPreview"></div>
+            <div style="display:flex; gap:0.5rem; margin-top:1rem;">
+                <button type="submit" style="background:#e94560;">Сохранить</button>
+                <button type="button" id="closeModalBtn" class="danger-btn">Отмена</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script src="admin.js"></script>
 </body>
 </html>

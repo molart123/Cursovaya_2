@@ -1,11 +1,13 @@
 {
   "gameConfig": {
-    "mode": "1board1team",
+    "mode": "2board1team",
     "theme": "super_heroes",
     "isRunning": false,
     "isStarting": false,
     "roundDuration": 600,
-    "timeRemaining": 600
+    "timeRemaining": 600,
+    "board1Password": "7576",
+    "board2Password": "5678"
   },
   "teams": [
     {

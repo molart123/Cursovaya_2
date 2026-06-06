@@ -7,7 +7,16 @@
   <link rel="stylesheet" href="board2.css">
 </head>
 <body>
-<div class="boards-container">
+<div id="authOverlay">
+  <div class="auth-container">
+    <h2>🔐 Доступ к доске 2</h2>
+    <input type="password" id="boardPassword" placeholder="Введите пароль" autocomplete="off">
+    <button id="authSubmitBtn">Войти</button>
+    <div id="authError" class="error-msg"></div>
+  </div>
+</div>
+
+<div class="boards-container" id="gameContainer" style="display:none;">
   <div class="game-area" id="gameArea1">
     <div class="team-info left">
       <div class="team-name" id="teamNameDisplay1">Команда 3</div>
@@ -24,6 +33,7 @@
   </div>
 </div>
 <div class="timer" id="timerDisplay">00:00</div>
+
 <script src="board2.js"></script>
 </body>
 </html>

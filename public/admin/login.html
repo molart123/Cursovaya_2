@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Вход в админ-панель</title>
+    <link rel="stylesheet" href="admin.css">
+    <style>
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+            background: #16213e;
+            padding: 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+        .login-container h2 {
+            color: #e94560;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .login-container input {
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        .error {
+            color: #f44336;
+            text-align: center;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body style="background:#1a1a2e; display:flex; align-items:center; justify-content:center;">
+<div class="login-container">
+    <h2>🔐 Вход в админ-панель</h2>
+    <input type="text" id="loginInput" placeholder="Логин" autocomplete="username">
+    <input type="password" id="passwordInput" placeholder="Пароль" autocomplete="current-password">
+    <button id="loginBtn">Войти</button>
+    <div id="errorMsg" class="error"></div>
+</div>
+<script>
+	document.getElementById('loginBtn').addEventListener('click', async () => {
+		const login = document.getElementById('loginInput').value;
+		const password = document.getElementById('passwordInput').value;
+		const resp = await fetch('/admin/login', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ login, password })
+		});
+		const data = await resp.json();
+		if (resp.ok) {
+			window.location.href = '/admin/admin.html';
+		} else {
+			document.getElementById('errorMsg').innerText = data.error || 'Ошибка входа';
+		}
+	});
+</script>
+</body>
+</html>
