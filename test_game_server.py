@@ -6,17 +6,30 @@ from pathlib import Path
 
 import pytest
 import requests
+import bcrypt
 from PIL import Image
 
 # Конфигурация
 BASE_URL = os.environ.get("TEST_BASE_URL", "http://localhost:3000")
-ADMIN_LOGIN = "molart"
-ADMIN_PASSWORD = "molart123"
+TEST_ADMIN_LOGIN = "molart"
+TEST_ADMIN_PASSWORD = "molart123"
 
 PROJECT_ROOT = Path(__file__).parent
 DB_PATH = PROJECT_ROOT / "db.json"
 USERS_PATH = PROJECT_ROOT / "users.json"
 BACKUP_DIR = PROJECT_ROOT / "test_backup"
+
+
+def ensure_test_admin():
+    """Создаёт или обновляет тестового суперадмина с известным паролем."""
+    if not USERS_PATH.exists():
+        return
+    with open(USERS_PATH, "r", encoding="utf-8") as f:
+        users = json.load(f)
+    hashed = bcrypt.hashpw(TEST_ADMIN_PASSWORD.encode(), bcrypt.gensalt()).decode()
+    users[TEST_ADMIN_LOGIN] = {"password": hashed, "role": "superadmin"}
+    with open(USERS_PATH, "w", encoding="utf-8") as f:
+        json.dump(users, f, indent=2)
 
 
 # --- Фикстуры ---
@@ -37,7 +50,6 @@ def backup_data():
 
 @pytest.fixture
 def session():
-    """HTTP-сессия без предустановленных заголовков (requests сам установит нужные)."""
     sess = requests.Session()
     yield sess
     sess.close()
@@ -45,10 +57,11 @@ def session():
 
 @pytest.fixture
 def admin_session(session, backup_data):
-    """Выполняет логин суперадмина и возвращает сессию с установленной сессией cookie."""
+    """Выполняет логин тестового суперадмина."""
+    ensure_test_admin()
     resp = session.post(f"{BASE_URL}/admin/login", json={
-        "login": ADMIN_LOGIN,
-        "password": ADMIN_PASSWORD
+        "login": TEST_ADMIN_LOGIN,
+        "password": TEST_ADMIN_PASSWORD
     })
     if resp.status_code != 200:
         pytest.skip(f"Не удалось залогиниться: {resp.status_code} {resp.text}")
@@ -70,9 +83,10 @@ def create_dummy_image(path, size=(1, 1)):
 
 class TestAdminAuth:
     def test_login_success(self, session):
+        ensure_test_admin()
         resp = session.post(f"{BASE_URL}/admin/login", json={
-            "login": ADMIN_LOGIN,
-            "password": ADMIN_PASSWORD
+            "login": TEST_ADMIN_LOGIN,
+            "password": TEST_ADMIN_PASSWORD
         })
         assert resp.status_code == 200
         data = resp.json()
@@ -81,7 +95,7 @@ class TestAdminAuth:
 
     def test_login_fail_wrong_password(self, session):
         resp = session.post(f"{BASE_URL}/admin/login", json={
-            "login": ADMIN_LOGIN,
+            "login": TEST_ADMIN_LOGIN,
             "password": "wrong"
         })
         assert resp.status_code == 401
@@ -132,6 +146,8 @@ class TestPublicEndpoints:
         assert "status" in data
         assert "remaining" in data
         assert "teams" in data
+        # Проверяем наличие токена (новое поле)
+        assert "boardAuthToken" in data
 
 
 class TestGameConfigActions:
@@ -200,7 +216,9 @@ class TestBoardPasswords:
         admin_session.post(f"{BASE_URL}/admin/board-password", json={"boardId": 1, "password": "boardpass"})
         resp = session.post(f"{BASE_URL}/board/auth", json={"boardId": 1, "password": "boardpass"})
         assert resp.status_code == 200
-        assert resp.json().get("ok") is True
+        data = resp.json()
+        assert data["ok"] is True
+        assert "authToken" in data
 
     def test_board_auth_failure(self, session, admin_session):
         admin_session.post(f"{BASE_URL}/admin/board-password", json={"boardId": 1, "password": "correct"})
@@ -226,6 +244,24 @@ class TestGameControl:
         assert shutdown.status_code == 200
         state = admin_session.get(f"{BASE_URL}/board/state").json()
         assert state["status"] == "shutdown"
+
+
+class TestRevokeBoards:
+    def test_revoke_boards(self, admin_session):
+        # Получаем текущий токен
+        state_before = admin_session.get(f"{BASE_URL}/board/state").json()
+        old_token = state_before["boardAuthToken"]
+        # Вызываем revoke
+        resp = admin_session.post(f"{BASE_URL}/admin/revoke-boards")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert "newToken" in data
+        new_token = data["newToken"]
+        assert new_token != old_token
+        # Проверяем, что токен в состоянии игры изменился
+        state_after = admin_session.get(f"{BASE_URL}/board/state").json()
+        assert state_after["boardAuthToken"] == new_token
 
 
 class TestThemeManagement:
@@ -276,13 +312,11 @@ class TestThemeManagement:
         resp = admin_session.post(f"{BASE_URL}/admin/themes", files=files, data=data)
         files["small_enemy"][1].close()
         assert resp.status_code == 400
-        # Сервер может вернуть HTML при ошибке, но мы проверяем наличие сообщения в тексте
         assert "Missing enemy images" in resp.text
 
     def test_edit_theme(self, admin_session, sample_theme_files):
         small, medium, big, bg = sample_theme_files
         theme_name = f"edit_theme_{os.getpid()}"
-        # Создаём тему
         files_create = {
             "small_enemy": ("small.png", open(small, "rb"), "image/png"),
             "medium_enemy": ("medium.png", open(medium, "rb"), "image/png"),
@@ -294,7 +328,6 @@ class TestThemeManagement:
             f[1].close()
         assert create_resp.status_code == 200
 
-        # Редактируем (меняем фон)
         new_bg = sample_theme_files[3]
         files_update = {
             "background": ("new_bg.png", open(new_bg, "rb"), "image/png")
@@ -303,17 +336,14 @@ class TestThemeManagement:
         files_update["background"][1].close()
         assert resp.status_code == 200
 
-        # Проверяем, что тема существует и фон обновлён
         themes = admin_session.get(f"{BASE_URL}/admin/themes").json()["themes"]
         assert "background" in themes[theme_name]
 
-        # Удаляем тему
         admin_session.delete(f"{BASE_URL}/admin/themes/{theme_name}")
 
     def test_delete_theme(self, admin_session, sample_theme_files):
         small, medium, big, bg = sample_theme_files
         theme_name = f"to_delete_{os.getpid()}"
-        # Создаём тему
         files = {
             "small_enemy": ("small.png", open(small, "rb"), "image/png"),
             "medium_enemy": ("medium.png", open(medium, "rb"), "image/png"),
@@ -325,11 +355,9 @@ class TestThemeManagement:
             f[1].close()
         assert create_resp.status_code == 200
 
-        # Удаляем
         resp = admin_session.delete(f"{BASE_URL}/admin/themes/{theme_name}")
         assert resp.status_code == 200
 
-        # Проверяем, что тема удалена
         themes = admin_session.get(f"{BASE_URL}/admin/themes").json()["themes"]
         assert theme_name not in themes
 
@@ -373,6 +401,6 @@ class TestUserManagement:
         assert not any(u["login"] == new_login for u in users)
 
     def test_cannot_delete_self(self, admin_session):
-        resp = admin_session.delete(f"{BASE_URL}/admin/users/{ADMIN_LOGIN}")
+        resp = admin_session.delete(f"{BASE_URL}/admin/users/{TEST_ADMIN_LOGIN}")
         assert resp.status_code == 400
         assert "Cannot delete yourself" in resp.json().get("error", "")
