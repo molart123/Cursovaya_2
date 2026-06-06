@@ -3,11 +3,12 @@
     "mode": "2board1team",
     "theme": "super_heroes",
     "isRunning": false,
-    "isStarting": false,
+    "isStarting": true,
     "roundDuration": 600,
-    "timeRemaining": 600,
+    "timeRemaining": 0,
     "board1Password": "7576",
-    "board2Password": "5678"
+    "board2Password": "12345",
+    "boardAuthToken": "bcc981c84e49ca3c7e5538c75cdfb5c9ffcf56582a926468fb4836c5f2da37d7"
   },
   "teams": [
     {

@@ -4,6 +4,7 @@ var path = require('path');
 var multer = require('multer');
 var session = require('express-session');
 var bcrypt = require('bcrypt');
+var crypto = require('crypto');
 var app = express();
 var PORT = 3000;
 
@@ -30,6 +31,10 @@ let users = loadUsers();
 var db = JSON.parse(fs.readFileSync(path.join(__dirname, 'db.json'), 'utf8'));
 if (db.gameConfig.timeRemaining === undefined) {
     db.gameConfig.timeRemaining = db.gameConfig.roundDuration;
+    saveDB();
+}
+if (!db.gameConfig.boardAuthToken) {
+    db.gameConfig.boardAuthToken = crypto.randomBytes(32).toString('hex');
     saveDB();
 }
 var timerInterval = null;
@@ -102,7 +107,6 @@ function requireSuperAdmin(req, res, next) {
 }
 
 function startServer() {
-    // Защита статической админки
     app.get('/admin/admin.html', (req, res, next) => {
         if (req.session.user) next();
         else res.redirect('/admin/login.html');
@@ -112,7 +116,6 @@ function startServer() {
     app.use('/admin/admin.css', express.static(path.join(__dirname, 'public/admin/admin.css')));
     app.use('/admin/login.html', express.static(path.join(__dirname, 'public/admin/login.html')));
 
-    // Аутентификация админов
     app.post('/admin/login', (req, res) => {
         const { login, password } = req.body;
         if (!login || !password) return res.status(400).json({ error: 'Login and password required' });
@@ -132,7 +135,6 @@ function startServer() {
         if (req.session.user) res.json({ authenticated: true, role: req.session.user.role });
         else res.json({ authenticated: false });
     });
-    // Управление пользователями
     app.post('/admin/users', requireSuperAdmin, (req, res) => {
         const { login, password, role } = req.body;
         if (!login || !password) return res.status(400).json({ error: 'Login and password required' });
@@ -159,7 +161,6 @@ function startServer() {
         res.json({ ok: true });
     });
 
-    // Основные API игры
     app.get('/config', (req, res) => { res.json(db); });
     app.get('/themes', (req, res) => {
         res.json({ themes: Object.keys(db.themes), currentTheme: db.gameConfig.theme });
@@ -230,7 +231,8 @@ function startServer() {
             enemies: enemies,
             teams: db.teams.map(t => ({ name: t.name, score: t.score })),
             remaining: db.gameConfig.timeRemaining,
-            status: status
+            status: status,
+            boardAuthToken: db.gameConfig.boardAuthToken
         });
     });
     app.post('/board/score', requireAuth, (req, res) => {
@@ -302,19 +304,20 @@ function startServer() {
         res.json({ ok: true });
     });
 
-    // НОВЫЕ API ДЛЯ АУТЕНТИФИКАЦИИ ДОСОК
+    // Аутентификация досок с токеном
     app.post('/board/auth', (req, res) => {
         const { boardId, password } = req.body;
         if (boardId !== 1 && boardId !== 2) return res.status(400).json({ error: 'Invalid boardId' });
         const correct = db.gameConfig[`board${boardId}Password`];
         if (!correct) return res.status(500).json({ error: 'Board password not set' });
         if (password === correct) {
-            res.json({ ok: true });
+            res.json({ ok: true, authToken: db.gameConfig.boardAuthToken });
         } else {
             res.status(401).json({ error: 'Неверный пароль' });
         }
     });
 
+    // Смена паролей досок
     app.post('/admin/board-password', requireAuth, (req, res) => {
         const { boardId, password } = req.body;
         if (boardId !== 1 && boardId !== 2) return res.status(400).json({ error: 'Invalid boardId' });
@@ -322,6 +325,13 @@ function startServer() {
         db.gameConfig[`board${boardId}Password`] = password;
         saveDB();
         res.json({ ok: true });
+    });
+
+    // Принудительная блокировка всех досок (смена токена)
+    app.post('/admin/revoke-boards', requireAuth, (req, res) => {
+        db.gameConfig.boardAuthToken = crypto.randomBytes(32).toString('hex');
+        saveDB();
+        res.json({ ok: true, newToken: db.gameConfig.boardAuthToken });
     });
 
     app.listen(PORT, '0.0.0.0', () => {

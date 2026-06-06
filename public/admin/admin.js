@@ -17,7 +17,7 @@ checkAuth().then(role => {
     }
     loadThemesList();
     loadConfigAndStart();
-    loadBoardPasswords(); // загрузить пароли досок
+    loadBoardPasswords();
 });
 
 function loadConfigAndStart() {
@@ -157,7 +157,20 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
     window.location.href = '/admin/login.html';
 });
 
-// Управление админами (superadmin)
+// Кнопка блокировки всех досок
+document.getElementById('revokeBoardsBtn').addEventListener('click', async () => {
+    if (confirm('Вы уверены? Все доски будут заблокированы, игроки потеряют доступ. Для продолжения им потребуется снова ввести пароль.')) {
+        const resp = await fetch('/admin/revoke-boards', { method: 'POST' });
+        const data = await resp.json();
+        if (data.ok) {
+            alert('Доски заблокированы. Теперь игроки должны ввести пароль заново.');
+        } else {
+            alert('Ошибка: ' + (data.error || 'неизвестная'));
+        }
+    }
+});
+
+// Управление админами (только superadmin)
 async function loadAdminsList() {
     const resp = await fetch('/admin/users');
     const data = await resp.json();

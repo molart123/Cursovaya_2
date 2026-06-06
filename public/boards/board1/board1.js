@@ -1,6 +1,7 @@
 // ========== АУТЕНТИФИКАЦИЯ ДОСКИ ==========
 const BOARD_ID = 1;
 const STORAGE_KEY = `board${BOARD_ID}_authenticated`;
+const STORAGE_TOKEN_KEY = STORAGE_KEY + '_token';
 
 let gameActive = false;
 let gamePaused = false;
@@ -38,7 +39,9 @@ async function authenticate(password) {
         body: JSON.stringify({ boardId: BOARD_ID, password: password })
     });
     if (resp.ok) {
+        const data = await resp.json();
         localStorage.setItem(STORAGE_KEY, 'true');
+        localStorage.setItem(STORAGE_TOKEN_KEY, data.authToken);
         hideAuthOverlay();
         startGameLoop();
         return true;
@@ -54,7 +57,11 @@ document.getElementById('authSubmitBtn').addEventListener('click', () => {
     authenticate(pwd);
 });
 
-if (!isAuthorized()) {
+// При старте, если есть флаг без токена – сбросить
+if (isAuthorized() && !localStorage.getItem(STORAGE_TOKEN_KEY)) {
+    localStorage.removeItem(STORAGE_KEY);
+    showAuthOverlay();
+} else if (!isAuthorized()) {
     showAuthOverlay();
 } else {
     hideAuthOverlay();
@@ -242,6 +249,16 @@ function startGameLoop() {
 
     function update() {
         getState().then(state => {
+            // Проверка токена
+            const savedToken = localStorage.getItem(STORAGE_TOKEN_KEY);
+            if (savedToken && state.boardAuthToken && savedToken !== state.boardAuthToken) {
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(STORAGE_TOKEN_KEY);
+                if (gameActive || !gamePaused) fullReset();
+                showAuthOverlay();
+                return;
+            }
+
             textures = state.enemies || {};
             var mins = Math.floor(state.remaining / 60);
             var secs = state.remaining % 60;
